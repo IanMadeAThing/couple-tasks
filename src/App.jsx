@@ -3,7 +3,7 @@ import { auth } from "./firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useHousehold } from "./useHousehold";
 import VoiceButton from "./VoiceButton";
-import Login from "./Login.jsx";
+import Login from "./login.jsx";
 import "./App.css";
 
 const DEMO_TODOS = [
