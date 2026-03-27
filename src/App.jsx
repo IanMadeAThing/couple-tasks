@@ -6,16 +6,29 @@ import VoiceButton from "./VoiceButton";
 import Login from "./Login";
 import "./App.css";
 
+const DEMO_TODOS = [
+  { id: 1, text: "Pick up groceries", section: "now", done: false, completedAt: null },
+  { id: 2, text: "Call the plumber", section: "now", done: false, completedAt: null },
+  { id: 3, text: "Book restaurant for date night", section: "later", done: false, completedAt: null },
+  { id: 4, text: "Pay electricity bill", section: "later", done: false, completedAt: null },
+  { id: 5, text: "Pick up dry cleaning", section: "tomorrow", done: false, completedAt: null },
+  { id: 6, text: "Schedule car service", section: "tomorrow", done: false, completedAt: null },
+];
+
 function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [demoMode, setDemoMode] = useState(false);
+  const [demoTodos, setDemoTodos] = useState(DEMO_TODOS);
   const [inputValue, setInputValue] = useState("");
   const [section, setSection] = useState("now");
   const [confirm, setConfirm] = useState(null);
   const [tomorrowOpen, setTomorrowOpen] = useState(true);
   const [bottomOpen, setBottomOpen] = useState(true);
 
-  const { todos, loading, addTodo, toggleTodo, deleteTodo } = useHousehold();
+  const household = useHousehold();
+  const todos = demoMode ? demoTodos : household.todos;
+  const loading = demoMode ? false : household.loading;
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -24,6 +37,34 @@ function App() {
     });
     return unsub;
   }, []);
+
+  function addTodo(text, sec) {
+    if (demoMode) {
+      setDemoTodos(prev => [...prev, {
+        id: Date.now(), text, section: sec, done: false, completedAt: null
+      }]);
+    } else {
+      household.addTodo(text, sec);
+    }
+  }
+
+  function toggleTodo(todo, done) {
+    if (demoMode) {
+      setDemoTodos(prev => prev.map(t =>
+        t.id === todo.id ? { ...t, done, completedAt: done ? new Date().toISOString() : null } : t
+      ));
+    } else {
+      household.toggleTodo(todo, done);
+    }
+  }
+
+  function deleteTodo(id) {
+    if (demoMode) {
+      setDemoTodos(prev => prev.filter(t => t.id !== id));
+    } else {
+      household.deleteTodo(id);
+    }
+  }
 
   function handleVoiceResult(tasks) {
     if (tasks.length === 1) {
@@ -40,9 +81,7 @@ function App() {
         setSection(task.section || "now");
       }
     } else {
-      tasks.forEach(task => {
-        addTodo(task.text, task.section);
-      });
+      tasks.forEach(task => addTodo(task.text, task.section));
     }
   }
 
@@ -52,9 +91,7 @@ function App() {
     setInputValue("");
   }
 
-  function handleCheckbox(todo) {
-    setConfirm(todo);
-  }
+  function handleCheckbox(todo) { setConfirm(todo); }
 
   function handleConfirm(answer) {
     toggleTodo(confirm, answer === "yes");
@@ -96,7 +133,7 @@ function App() {
     </div>
   );
 
-  if (!user) return <Login />;
+  if (!user && !demoMode) return <Login onDemo={() => setDemoMode(true)} />;
 
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
@@ -107,8 +144,30 @@ function App() {
   return (
     <div className="layout">
 
+      {/* DEMO BANNER */}
+      {demoMode && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0,
+          background: "#4f46e5", color: "white",
+          textAlign: "center", padding: "8px",
+          fontSize: "13px", zIndex: 999,
+          display: "flex", alignItems: "center",
+          justifyContent: "center", gap: 12
+        }}>
+          🎮 Demo Mode — data is not saved
+          <button onClick={() => setDemoMode(false)} style={{
+            background: "white", color: "#4f46e5",
+            border: "none", borderRadius: "6px",
+            padding: "3px 10px", fontSize: "12px",
+            cursor: "pointer"
+          }}>
+            Sign in
+          </button>
+        </div>
+      )}
+
       {/* LEFT PANEL — Do Later */}
-      <div className="side-panel left-panel">
+      <div className="side-panel left-panel" style={{ marginTop: demoMode ? "37px" : 0 }}>
         <h2 className="panel-title later-title">Do Later</h2>
         <p className="panel-count">{laterTodos.filter(t => !t.done).length} tasks</p>
         <div className="side-list">
@@ -124,17 +183,21 @@ function App() {
       </div>
 
       {/* CENTER + BOTTOM */}
-      <div className="main-column">
+      <div className="main-column" style={{ marginTop: demoMode ? "37px" : 0 }}>
         <div className="center-panel">
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-            <span style={{ fontSize: "13px", color: "#888" }}>👤 {user.email}</span>
-            <button onClick={() => signOut(auth)} style={{
-              background: "none", border: "1px solid #ddd", borderRadius: "6px",
-              padding: "4px 10px", fontSize: "12px", cursor: "pointer", color: "#888"
-            }}>
-              Sign out
-            </button>
+            <span style={{ fontSize: "13px", color: "#888" }}>
+              {demoMode ? "🎮 Demo Mode" : `👤 ${user.email}`}
+            </span>
+            {!demoMode && (
+              <button onClick={() => signOut(auth)} style={{
+                background: "none", border: "1px solid #ddd", borderRadius: "6px",
+                padding: "4px 10px", fontSize: "12px", cursor: "pointer", color: "#888"
+              }}>
+                Sign out
+              </button>
+            )}
           </div>
 
           <h1 className="main-title">Do Now</h1>
@@ -205,7 +268,7 @@ function App() {
       </div>
 
       {/* RIGHT PANEL — Do Tomorrow */}
-      <div className={`side-panel right-panel ${tomorrowOpen ? "open" : ""}`}>
+      <div className={`side-panel right-panel ${tomorrowOpen ? "open" : ""}`} style={{ marginTop: demoMode ? "37px" : 0 }}>
         <div className="tomorrow-header" onClick={() => setTomorrowOpen(!tomorrowOpen)}>
           <h2 className="panel-title tomorrow-title">Do Tomorrow</h2>
           <span className="toggle-arrow">{tomorrowOpen ? "→" : "←"}</span>
